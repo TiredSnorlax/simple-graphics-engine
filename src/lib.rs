@@ -1,10 +1,10 @@
-mod matrix;
+mod camera;
+pub mod matrix;
 mod mesh;
 
 // Re-export for the main file to use
-pub use matrix::Vector3;
-
 pub use crate::mesh::Mesh;
+pub use matrix::Vector3;
 
 pub const FOV: f32 = 90.0;
 pub const NEAR: f32 = 0.1;
@@ -17,17 +17,24 @@ pub struct Object {
 }
 
 impl Object {
-    pub fn cube(position: Vector3) -> Self {
-        let mesh = Mesh::cube();
-        let rotation = Vector3::new(0.0, 0.0, 0.0);
-        Object {
-            mesh,
-            position,
-            rotation,
-        }
-    }
+    // pub fn cube(position: Vector3) -> Self {
+    //     let mesh = Mesh::cube();
+    //     let rotation = Vector3::new(0.0, 0.0, 0.0);
+    //     Object {
+    //         mesh,
+    //         position,
+    //         rotation,
+    //     }
+    // }
 
-    pub fn draw(&self, width: f32, height: f32, camera: &Vector3, light_direction: &Vector3) {
+    pub fn draw(
+        &self,
+        width: f32,
+        height: f32,
+        camera: &Vector3,
+        light_direction: &Vector3,
+        projection_mat: &matrix::Mat4x4,
+    ) {
         self.mesh.draw(
             width,
             height,
@@ -35,6 +42,7 @@ impl Object {
             &self.position,
             camera,
             light_direction,
+            projection_mat,
         );
     }
 }

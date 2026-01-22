@@ -1,15 +1,10 @@
-use macroquad::{
-    color::Color,
-    math::Vec2,
-    shapes::draw_triangle,
-    window::{screen_height, screen_width},
-};
+use macroquad::{color::Color, math::Vec2, shapes::draw_triangle};
 
 use crate::{
-    FAR, FOV, NEAR, Vector3,
+    Vector3,
     matrix::{
-        self, cross_product, dot_product, mult_vec_mat, rotate_x, rotate_y, rotate_z, translate,
-        vec_sub,
+        Mat4x4, cross_product, dot_product, mat_multiply, mult_vec_mat, rotate_x, rotate_y,
+        rotate_z, translate, vec_div, vec_sub,
     },
 };
 
@@ -39,41 +34,41 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn cube() -> Self {
-        let vertices = vec![
-            Vertex::new(-0.5, -0.5, 0.0),
-            Vertex::new(-0.5, 0.5, 0.0),
-            Vertex::new(0.5, 0.5, 0.0),
-            Vertex::new(0.5, -0.5, 0.0),
-            Vertex::new(0.5, -0.5, 1.0),
-            Vertex::new(0.5, 0.5, 1.0),
-            Vertex::new(-0.5, 0.5, 1.0),
-            Vertex::new(-0.5, -0.5, 1.0),
-        ];
+    // pub fn cube() -> Self {
+    //     let vertices = vec![
+    //         Vertex::new(-0.5, -0.5, 0.0),
+    //         Vertex::new(-0.5, 0.5, 0.0),
+    //         Vertex::new(0.5, 0.5, 0.0),
+    //         Vertex::new(0.5, -0.5, 0.0),
+    //         Vertex::new(0.5, -0.5, 1.0),
+    //         Vertex::new(0.5, 0.5, 1.0),
+    //         Vertex::new(-0.5, 0.5, 1.0),
+    //         Vertex::new(-0.5, -0.5, 1.0),
+    //     ];
 
-        let faces = vec![
-            // SOUTH
-            [0, 1, 2],
-            [0, 2, 3],
-            // EAST
-            [3, 2, 5],
-            [3, 5, 4],
-            // NORTH
-            [4, 5, 6],
-            [4, 6, 7],
-            // WEST
-            [7, 6, 1],
-            [7, 1, 0],
-            // TOP
-            [1, 6, 5],
-            [1, 5, 2],
-            // BOTTOM
-            [4, 7, 0],
-            [4, 0, 3],
-        ];
+    //     let faces = vec![
+    //         // SOUTH
+    //         [0, 1, 2],
+    //         [0, 2, 3],
+    //         // EAST
+    //         [3, 2, 5],
+    //         [3, 5, 4],
+    //         // NORTH
+    //         [4, 5, 6],
+    //         [4, 6, 7],
+    //         // WEST
+    //         [7, 6, 1],
+    //         [7, 1, 0],
+    //         // TOP
+    //         [1, 6, 5],
+    //         [1, 5, 2],
+    //         // BOTTOM
+    //         [4, 7, 0],
+    //         [4, 0, 3],
+    //     ];
 
-        Mesh { vertices, faces }
-    }
+    //     Mesh { vertices, faces }
+    // }
 
     pub fn load_from_obj(path: &str) -> Result<Self, std::io::Error> {
         let mut vertices = Vec::new();
@@ -118,34 +113,33 @@ impl Mesh {
         translation: &Vector3,
         camera: &Vector3,
         light_direction: &Vector3,
+        projection_mat: &Mat4x4,
     ) {
-        let projection_mat =
-            matrix::projection_matrix(screen_width() / screen_height(), FOV, NEAR, FAR);
-
         let mut triangles_to_raster = Vec::new();
         for face in &self.faces {
-            let mut processed_vertices = Vec::with_capacity(3);
-            // Process vertices -> Rotation, Translation, Scale (Not yet implemented)
+            let mut transformed_vertices = Vec::with_capacity(3);
+            // Transform vertices -> Rotation, Translation, Scale (Not yet implemented)
             for v in face {
                 let vertex = &self.vertices[*v];
 
                 // Rotate
-                let rotated = mult_vec_mat(vertex, rotate_x(rotation.x));
-                let rotated = mult_vec_mat(&rotated, rotate_y(rotation.y));
-                let rotated = mult_vec_mat(&rotated, rotate_z(rotation.z));
+                let transform_mat = mat_multiply(&rotate_x(rotation.x), &rotate_y(rotation.y));
+                let transform_mat = mat_multiply(&transform_mat, &rotate_z(rotation.z));
 
                 // Translate
-                let translated = mult_vec_mat(
-                    &rotated,
-                    translate(translation.x, translation.y, translation.z),
+                let transform_mat = mat_multiply(
+                    &transform_mat,
+                    &translate(translation.x, translation.y, translation.z),
                 );
 
-                processed_vertices.push(translated);
+                let transformed = mult_vec_mat(&vertex, transform_mat);
+
+                transformed_vertices.push(transformed);
             }
 
-            let v1 = &processed_vertices[0];
-            let v2 = &processed_vertices[1];
-            let v3 = &processed_vertices[2];
+            let v1 = &transformed_vertices[0];
+            let v2 = &transformed_vertices[1];
+            let v3 = &transformed_vertices[2];
 
             // Calculate the normal vector
             let line1 = vec_sub(v2, v1);
@@ -165,9 +159,12 @@ impl Mesh {
 
                 // Project to screen
                 let mut projected_vertices = Vec::with_capacity(3);
-                for i in &processed_vertices {
+                for i in &transformed_vertices {
                     // Project to screen
-                    let mut projected = mult_vec_mat(i, projection_mat);
+                    let projected = mult_vec_mat(i, *projection_mat);
+                    // Normalize into cartesian coordinates using w component
+                    let mut projected = vec_div(&projected, projected.w);
+
                     // Scale to screen dimensions
                     projected.x = (projected.x + 1.0) * width / 2.0;
                     projected.y = (projected.y + 1.0) * height / 2.0;
@@ -189,7 +186,7 @@ impl Mesh {
             let z1 = (t1.v1.z + t1.v2.z + t1.v3.z) / 3.0;
             let z2 = (t2.v1.z + t2.v2.z + t2.v3.z) / 3.0;
 
-            z2.partial_cmp(&z1).unwrap()
+            z1.partial_cmp(&z2).unwrap()
         });
 
         // Render triangles in order of highest depth (z-index) to lowest
