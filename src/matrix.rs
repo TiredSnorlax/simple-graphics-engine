@@ -130,32 +130,70 @@ pub fn translate(x: f32, y: f32, z: f32) -> Mat4x4 {
 }
 
 pub fn point_at_mat(pos: &Vector3, target: &Vector3, up: &Vector3) -> Mat4x4 {
+    // Getting the direction vectors of the camera
     let forward = (vec_sub(target, pos)).normalize();
 
     let a = vec_mul(&forward, dot_product(up, &forward));
     let new_up = vec_sub(up, &a).normalize();
 
-    let mut mat = [[0.0; 4]; 4];
-    mat[0][0] = right.x;
-    mat[0][1] = right.y;
-    mat[0][2] = right.z;
-    mat[0][3] = -right.dot(pos);
+    let new_right = cross_product(&new_up, &forward);
 
-    mat[1][0] = up.x;
-    mat[1][1] = up.y;
-    mat[1][2] = up.z;
-    mat[1][3] = -up.dot(pos);
+    // Translation of the camera with respect to the new coordinate/direction system
+    let translation_x = dot_product(pos, &new_right);
+    let translation_y = dot_product(pos, &new_up);
+    let translation_z = dot_product(pos, &forward);
+
+    let mut mat = [[0.0; 4]; 4];
+    mat[0][0] = new_right.x;
+    mat[0][1] = new_right.y;
+    mat[0][2] = new_right.z;
+    mat[0][3] = translation_x;
+
+    mat[1][0] = new_up.x;
+    mat[1][1] = new_up.y;
+    mat[1][2] = new_up.z;
+    mat[1][3] = translation_y;
 
     mat[2][0] = forward.x;
     mat[2][1] = forward.y;
     mat[2][2] = forward.z;
-    mat[2][3] = -forward.dot(pos);
+    mat[2][3] = translation_z;
 
+    mat[3][0] = pos.x;
+    mat[3][1] = pos.y;
+    mat[3][2] = pos.z;
     mat[3][3] = 1.0;
+
     mat
 }
 
-pub fn mult_vec_mat(vec: &Vector3, mat: Mat4x4) -> Vector3 {
+pub fn quick_inverse_mat(mat: &Mat4x4) -> Mat4x4 {
+    let mut inv = [[0.0; 4]; 4];
+
+    inv[0][0] = mat[0][0];
+    inv[0][1] = mat[1][0];
+    inv[0][2] = mat[2][0];
+    inv[0][3] = 0.0;
+
+    inv[1][0] = mat[0][1];
+    inv[1][1] = mat[1][1];
+    inv[1][2] = mat[2][1];
+    inv[1][3] = 0.0;
+
+    inv[2][0] = mat[0][2];
+    inv[2][1] = mat[1][2];
+    inv[2][2] = mat[2][2];
+    inv[2][3] = 0.0;
+
+    inv[3][0] = -(mat[0][3]);
+    inv[3][1] = -(mat[1][3]);
+    inv[3][2] = -(mat[2][3]);
+    inv[3][3] = 1.0;
+
+    inv
+}
+
+pub fn mult_vec_mat(vec: &Vector3, mat: &Mat4x4) -> Vector3 {
     let mut result = Vector3::new(0.0, 0.0, 0.0);
 
     result.x = vec.x * mat[0][0] + vec.y * mat[1][0] + vec.z * mat[2][0] + vec.w * mat[3][0];

@@ -34,42 +34,6 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    // pub fn cube() -> Self {
-    //     let vertices = vec![
-    //         Vertex::new(-0.5, -0.5, 0.0),
-    //         Vertex::new(-0.5, 0.5, 0.0),
-    //         Vertex::new(0.5, 0.5, 0.0),
-    //         Vertex::new(0.5, -0.5, 0.0),
-    //         Vertex::new(0.5, -0.5, 1.0),
-    //         Vertex::new(0.5, 0.5, 1.0),
-    //         Vertex::new(-0.5, 0.5, 1.0),
-    //         Vertex::new(-0.5, -0.5, 1.0),
-    //     ];
-
-    //     let faces = vec![
-    //         // SOUTH
-    //         [0, 1, 2],
-    //         [0, 2, 3],
-    //         // EAST
-    //         [3, 2, 5],
-    //         [3, 5, 4],
-    //         // NORTH
-    //         [4, 5, 6],
-    //         [4, 6, 7],
-    //         // WEST
-    //         [7, 6, 1],
-    //         [7, 1, 0],
-    //         // TOP
-    //         [1, 6, 5],
-    //         [1, 5, 2],
-    //         // BOTTOM
-    //         [4, 7, 0],
-    //         [4, 0, 3],
-    //     ];
-
-    //     Mesh { vertices, faces }
-    // }
-
     pub fn load_from_obj(path: &str) -> Result<Self, std::io::Error> {
         let mut vertices = Vec::new();
         let mut faces = Vec::new();
@@ -111,7 +75,8 @@ impl Mesh {
         height: f32,
         rotation: &Vector3,
         translation: &Vector3,
-        camera: &Vector3,
+        view_mat: &Mat4x4,
+        camera_position: &Vector3,
         light_direction: &Vector3,
         projection_mat: &Mat4x4,
     ) {
@@ -132,7 +97,7 @@ impl Mesh {
                     &translate(translation.x, translation.y, translation.z),
                 );
 
-                let transformed = mult_vec_mat(&vertex, transform_mat);
+                let transformed = mult_vec_mat(&vertex, &transform_mat);
 
                 transformed_vertices.push(transformed);
             }
@@ -148,20 +113,28 @@ impl Mesh {
             let normal = cross_product(&line1, &line2).normalize();
 
             // From camera to the normal -> Check if face is visible
-            let ray = vec_sub(v1, camera);
+            let ray = vec_sub(v1, camera_position);
             let normal_dot = dot_product(&normal, &ray);
 
             // Render only if visible
             if normal_dot < 0.0 {
                 // Calculate light intensity
                 let light_dot = dot_product(&normal, &light_direction);
-                let intensity = light_dot * 255.0;
+                // Minimum intensity at 10
+                let intensity = light_dot * 205.0 + 50.0;
+
+                // Convert World space to View space
+                let mut view_vertices = Vec::with_capacity(3);
+
+                view_vertices.push(mult_vec_mat(v1, view_mat));
+                view_vertices.push(mult_vec_mat(v2, view_mat));
+                view_vertices.push(mult_vec_mat(v3, view_mat));
 
                 // Project to screen
                 let mut projected_vertices = Vec::with_capacity(3);
-                for i in &transformed_vertices {
+                for i in &view_vertices {
                     // Project to screen
-                    let projected = mult_vec_mat(i, *projection_mat);
+                    let projected = mult_vec_mat(i, projection_mat);
                     // Normalize into cartesian coordinates using w component
                     let mut projected = vec_div(&projected, projected.w);
 

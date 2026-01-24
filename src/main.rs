@@ -1,4 +1,4 @@
-use graphics_engine::{Mesh, Object, Vector3, matrix};
+use graphics_engine::{Camera, Mesh, Object, Vector3, matrix};
 use macroquad::{
     time::draw_fps,
     window::{next_frame, screen_height, screen_width},
@@ -21,7 +21,7 @@ async fn main() {
 
     let mut objs = vec![axis];
 
-    let camera = Vector3::new(0.0, 0.0, 0.0);
+    let mut camera = Camera::new();
 
     let light_direction = Vector3::new(0.0, 0.0, -1.0).normalize();
 
@@ -29,6 +29,7 @@ async fn main() {
         matrix::projection_matrix(screen_width() / screen_height(), 90.0, 0.1, 100.0);
 
     loop {
+        camera.handle_user_input();
         tick(&mut objs);
         draw(&mut objs, &camera, &light_direction, &projection_matrix);
 
@@ -44,12 +45,14 @@ fn tick(objects: &mut Vec<Object>) {
         // object.rotation.z += 0.01;
     }
 }
+
 fn draw(
     objects: &mut Vec<Object>,
-    camera: &Vector3,
+    camera: &Camera,
     light_direction: &Vector3,
     projection_mat: &matrix::Mat4x4,
 ) {
+    let view_mat = camera.return_view_mat();
     for object in objects {
         object.draw(
             screen_width(),
@@ -57,6 +60,7 @@ fn draw(
             camera,
             light_direction,
             projection_mat,
+            &view_mat,
         );
     }
 }

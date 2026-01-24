@@ -3,6 +3,7 @@ pub mod matrix;
 mod mesh;
 
 // Re-export for the main file to use
+pub use crate::camera::Camera;
 pub use crate::mesh::Mesh;
 pub use matrix::Vector3;
 
@@ -31,16 +32,18 @@ impl Object {
         &self,
         width: f32,
         height: f32,
-        camera: &Vector3,
+        camera: &Camera,
         light_direction: &Vector3,
         projection_mat: &matrix::Mat4x4,
+        view_mat: &matrix::Mat4x4,
     ) {
         self.mesh.draw(
             width,
             height,
             &self.rotation,
             &self.position,
-            camera,
+            &view_mat,
+            &camera.position,
             light_direction,
             projection_mat,
         );
