@@ -1,3 +1,5 @@
+use crate::mesh::{Triangle, Vertex};
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vector3 {
     pub x: f32,
@@ -11,9 +13,29 @@ impl Vector3 {
         Vector3 { x, y, z, w: 1.0 }
     }
 
-    pub fn normalize(&mut self) -> Self {
+    pub fn normalize(&self) -> Self {
         let length = (self.x * self.x + self.y * self.y + self.z * self.z).sqrt();
         Vector3::new(self.x / length, self.y / length, self.z / length)
+    }
+
+    pub fn up() -> Self {
+        Vector3::new(0.0, 1.0, 0.0)
+    }
+
+    pub fn down() -> Self {
+        Vector3::new(0.0, -1.0, 0.0)
+    }
+
+    pub fn left() -> Self {
+        Vector3::new(-1.0, 0.0, 0.0)
+    }
+
+    pub fn right() -> Self {
+        Vector3::new(1.0, 0.0, 0.0)
+    }
+
+    pub fn forward() -> Self {
+        Vector3::new(0.0, 0.0, 1.0)
     }
 }
 
@@ -202,4 +224,108 @@ pub fn mult_vec_mat(vec: &Vector3, mat: &Mat4x4) -> Vector3 {
     result.w = vec.x * mat[0][3] + vec.y * mat[1][3] + vec.z * mat[2][3] + vec.w * mat[3][3];
 
     result
+}
+
+pub fn line_plane_intersection(
+    plane_normal: &Vector3,
+    plane_point: &Vector3,
+    line_start: &Vector3,
+    line_end: &Vector3,
+) -> Vector3 {
+    let plane_normal = plane_normal.normalize();
+    let d = dot_product(&plane_normal, plane_point);
+    let line_direction = vec_sub(line_end, line_start);
+    let t =
+        (d - dot_product(line_start, &plane_normal)) / dot_product(&plane_normal, &line_direction);
+    let intersection = vec_add(&line_start, &vec_mul(&line_direction, t));
+    intersection
+}
+
+// This is signed -> Positive distance means the point is in front of the plane (relative to normal)
+fn dist_point_plane(point: &Vertex, plane_normal: &Vector3, plane_point: &Vector3) -> f32 {
+    return (plane_normal.x * point.x + plane_normal.y * point.y + plane_normal.z * point.z)
+        - dot_product(plane_normal, plane_point);
+}
+
+pub fn triangle_clip_plane(
+    plane_normal: &Vector3,
+    plane_point: &Vector3,
+    triangle: &Triangle,
+    out_triangles: &mut Vec<Triangle>,
+) -> usize {
+    let plane_normal = plane_normal.normalize();
+
+    let mut inside_points: Vec<&Vertex> = Vec::with_capacity(3);
+    let mut outside_points: Vec<&Vertex> = Vec::with_capacity(3);
+
+    for vertex in &triangle.vertices {
+        let distance = dist_point_plane(vertex, &plane_normal, &plane_point);
+        if distance >= 0.0 {
+            inside_points.push(vertex);
+        } else {
+            outside_points.push(vertex);
+        }
+    }
+
+    let inside_count = inside_points.len();
+    let outside_count = outside_points.len();
+    if inside_count == 0 {
+        // All points are outside the plane -> Clip whole triangle
+        return 0;
+    }
+
+    if inside_count == 3 {
+        // All points are inside the plane -> No clipping needed
+        out_triangles.push(*triangle);
+
+        return 1;
+    }
+
+    if inside_count == 1 && outside_count == 2 {
+        // One point is inside, two points are outside -> Clip triangle into one triangles
+        let inside_point = inside_points[0];
+        let outside_point1 = outside_points[0];
+        let outside_point2 = outside_points[1];
+
+        let intersection1 =
+            line_plane_intersection(&plane_normal, &plane_point, inside_point, outside_point1);
+        let intersection2 =
+            line_plane_intersection(&plane_normal, &plane_point, inside_point, outside_point2);
+
+        out_triangles.push(Triangle {
+            vertices: [*inside_point, intersection1, intersection2],
+            intensity: triangle.intensity,
+        });
+
+        return 1;
+    }
+
+    if inside_count == 2 && outside_count == 1 {
+        // Two points are inside, one point is outside -> Clip triangle into two triangles
+        let inside_point1 = inside_points[0];
+        let inside_point2 = inside_points[1];
+        let outside_point = outside_points[0];
+
+        let intersection1 =
+            line_plane_intersection(&plane_normal, &plane_point, inside_point1, outside_point);
+        let intersection2 =
+            line_plane_intersection(&plane_normal, &plane_point, inside_point2, outside_point);
+
+        let out_triangle1 = Triangle {
+            vertices: [*inside_point1, *inside_point2, intersection1],
+            intensity: triangle.intensity,
+        };
+
+        let out_triangle2 = Triangle {
+            vertices: [*inside_point2, intersection2, intersection1],
+            intensity: triangle.intensity,
+        };
+
+        out_triangles.push(out_triangle1);
+        out_triangles.push(out_triangle2);
+
+        return 2;
+    }
+
+    return 0;
 }

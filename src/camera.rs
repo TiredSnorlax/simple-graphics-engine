@@ -1,4 +1,7 @@
-use macroquad::input::{KeyCode, is_key_down};
+use macroquad::{
+    input::{KeyCode, is_key_down},
+    prelude::coroutines::tweens::LinearTweenFuture,
+};
 
 use crate::{Vector3, matrix::*};
 const CAMERA_SPEED: f32 = 0.15;
@@ -25,7 +28,25 @@ impl Camera {
     pub fn direction(&self) -> Vector3 {
         let front = Vector3::new(0.0, 0.0, 1.0);
         let rotation_y = rotate_y(self.rotation_y);
-        mult_vec_mat(&front, &rotation_y)
+        let rotation_x = rotate_x(self.rotation_x);
+        let rotation_mat = mat_multiply(&rotation_x, &rotation_y);
+        mult_vec_mat(&front, &rotation_mat)
+    }
+
+    pub fn right(&self) -> Vector3 {
+        let right = Vector3::new(1.0, 0.0, 0.0);
+        let rotation_y = rotate_y(self.rotation_y);
+        let rotation_x = rotate_x(self.rotation_x);
+        let rotation_mat = mat_multiply(&rotation_x, &rotation_y);
+        mult_vec_mat(&right, &rotation_mat)
+    }
+
+    pub fn up(&self) -> Vector3 {
+        let up = Vector3::new(0.0, 1.0, 0.0);
+        let rotation_y = rotate_y(self.rotation_y);
+        let rotation_x = rotate_x(self.rotation_x);
+        let rotation_mat = mat_multiply(&rotation_x, &rotation_y);
+        mult_vec_mat(&up, &rotation_mat)
     }
 
     pub fn return_view_mat(&self) -> [[f32; 4]; 4] {
@@ -39,16 +60,16 @@ impl Camera {
         let forward = vec_mul(&self.direction(), CAMERA_SPEED);
         // Rotation of camera
         if is_key_down(KeyCode::Up) {
-            self.position.y += CAMERA_SPEED;
+            self.rotation_x += CAMERA_SPEED / 10.0;
         }
         if is_key_down(KeyCode::Down) {
-            self.position.y -= CAMERA_SPEED;
+            self.rotation_x -= CAMERA_SPEED / 10.0;
         }
         if is_key_down(KeyCode::Left) {
-            self.position.x += CAMERA_SPEED;
+            self.rotation_y -= CAMERA_SPEED / 10.0;
         }
         if is_key_down(KeyCode::Right) {
-            self.position.x -= CAMERA_SPEED;
+            self.rotation_y += CAMERA_SPEED / 10.0;
         }
 
         // Movement of camera
@@ -59,10 +80,17 @@ impl Camera {
             self.position = vec_sub(&self.position, &forward);
         }
         if is_key_down(KeyCode::A) {
-            self.rotation_y -= CAMERA_SPEED / 10.0;
+            // Move left relative to camera's direction
+            self.position = vec_add(&self.position, &vec_mul(&self.right(), CAMERA_SPEED));
         }
         if is_key_down(KeyCode::D) {
-            self.rotation_y += CAMERA_SPEED / 10.0;
+            self.position = vec_add(&self.position, &vec_mul(&self.right(), -CAMERA_SPEED));
+        }
+        if is_key_down(KeyCode::Space) {
+            self.position = vec_add(&self.position, &vec_mul(&self.up(), CAMERA_SPEED));
+        }
+        if is_key_down(KeyCode::LeftShift) {
+            self.position = vec_add(&self.position, &vec_mul(&self.up(), -CAMERA_SPEED));
         }
     }
 }
