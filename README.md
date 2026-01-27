@@ -16,6 +16,12 @@ Ensure you have Rust and Cargo installed. You can find installation instructions
 cargo run
 ```
 
+## Controls
+
+-   **WASD**: Move the camera.
+-   **Shift/Space**: Move the camera up/down.
+-   **Arrow Keys**: Rotate the camera.
+
 The default scene is a small map of a game.
 The FPS might be low if you build it normally.
 To improve performance, you can use the following command:
