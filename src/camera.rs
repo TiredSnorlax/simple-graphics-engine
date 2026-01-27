@@ -1,10 +1,10 @@
 use macroquad::{
     input::{KeyCode, is_key_down},
-    prelude::coroutines::tweens::LinearTweenFuture,
+    time::get_frame_time,
 };
 
 use crate::{Vector3, matrix::*};
-const CAMERA_SPEED: f32 = 0.15;
+const CAMERA_SPEED: f32 = 15.0;
 
 pub struct Camera {
     pub position: Vector3,
@@ -57,19 +57,21 @@ impl Camera {
     }
 
     pub fn handle_user_input(&mut self) {
-        let forward = vec_mul(&self.direction(), CAMERA_SPEED);
+        let delta = get_frame_time();
+
+        let forward = vec_mul(&self.direction(), CAMERA_SPEED * delta);
         // Rotation of camera
         if is_key_down(KeyCode::Up) {
-            self.rotation_x += CAMERA_SPEED / 10.0;
+            self.rotation_x += CAMERA_SPEED / 10.0 * delta;
         }
         if is_key_down(KeyCode::Down) {
-            self.rotation_x -= CAMERA_SPEED / 10.0;
+            self.rotation_x -= CAMERA_SPEED / 10.0 * delta;
         }
         if is_key_down(KeyCode::Left) {
-            self.rotation_y -= CAMERA_SPEED / 10.0;
+            self.rotation_y -= CAMERA_SPEED / 10.0 * delta;
         }
         if is_key_down(KeyCode::Right) {
-            self.rotation_y += CAMERA_SPEED / 10.0;
+            self.rotation_y += CAMERA_SPEED / 10.0 * delta;
         }
 
         // Movement of camera
@@ -81,16 +83,22 @@ impl Camera {
         }
         if is_key_down(KeyCode::A) {
             // Move left relative to camera's direction
-            self.position = vec_add(&self.position, &vec_mul(&self.right(), CAMERA_SPEED));
+            self.position = vec_add(
+                &self.position,
+                &vec_mul(&self.right(), CAMERA_SPEED * delta),
+            );
         }
         if is_key_down(KeyCode::D) {
-            self.position = vec_add(&self.position, &vec_mul(&self.right(), -CAMERA_SPEED));
+            self.position = vec_add(
+                &self.position,
+                &vec_mul(&self.right(), -CAMERA_SPEED * delta),
+            );
         }
         if is_key_down(KeyCode::Space) {
-            self.position = vec_add(&self.position, &vec_mul(&self.up(), CAMERA_SPEED));
+            self.position = vec_add(&self.position, &vec_mul(&self.up(), CAMERA_SPEED * delta));
         }
         if is_key_down(KeyCode::LeftShift) {
-            self.position = vec_add(&self.position, &vec_mul(&self.up(), -CAMERA_SPEED));
+            self.position = vec_add(&self.position, &vec_mul(&self.up(), -CAMERA_SPEED * delta));
         }
     }
 }

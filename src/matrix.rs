@@ -1,5 +1,22 @@
 use crate::mesh::{Triangle, Vertex};
 
+#[derive(Debug, Clone, Copy)]
+pub struct Vector2 {
+    pub u: f32,
+    pub v: f32,
+    pub w: f32,
+}
+
+impl Vector2 {
+    pub fn new(u: f32, v: f32) -> Self {
+        Vector2 { u, v, w: 1.0 }
+    }
+}
+
+pub fn vec2_div(v1: &Vector2, divisor: f32) -> Vector2 {
+    Vector2::new(v1.u / divisor, v1.v / divisor)
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Vector3 {
     pub x: f32,
@@ -231,14 +248,14 @@ pub fn line_plane_intersection(
     plane_point: &Vector3,
     line_start: &Vector3,
     line_end: &Vector3,
-) -> Vector3 {
+) -> (Vector3, f32) {
     let plane_normal = plane_normal.normalize();
     let d = dot_product(&plane_normal, plane_point);
     let line_direction = vec_sub(line_end, line_start);
     let t =
         (d - dot_product(line_start, &plane_normal)) / dot_product(&plane_normal, &line_direction);
     let intersection = vec_add(&line_start, &vec_mul(&line_direction, t));
-    intersection
+    (intersection, t)
 }
 
 // This is signed -> Positive distance means the point is in front of the plane (relative to normal)
@@ -258,12 +275,20 @@ pub fn triangle_clip_plane(
     let mut inside_points: Vec<&Vertex> = Vec::with_capacity(3);
     let mut outside_points: Vec<&Vertex> = Vec::with_capacity(3);
 
-    for vertex in &triangle.vertices {
+    let mut inside_texture_coords = Vec::with_capacity(3);
+    let mut outside_texture_coords = Vec::with_capacity(3);
+
+    for i in 0..triangle.vertices.len() {
+        let vertex = &triangle.vertices[i];
+        let texture_coords = &triangle.texture_coords[i];
+
         let distance = dist_point_plane(vertex, &plane_normal, &plane_point);
         if distance >= 0.0 {
             inside_points.push(vertex);
+            inside_texture_coords.push(texture_coords);
         } else {
             outside_points.push(vertex);
+            outside_texture_coords.push(texture_coords);
         }
     }
 
@@ -272,57 +297,102 @@ pub fn triangle_clip_plane(
     if inside_count == 0 {
         // All points are outside the plane -> Clip whole triangle
         return 0;
-    }
-
-    if inside_count == 3 {
+    } else if inside_count == 3 {
         // All points are inside the plane -> No clipping needed
         out_triangles.push(*triangle);
-
         return 1;
-    }
-
-    if inside_count == 1 && outside_count == 2 {
+    } else if inside_count == 1 && outside_count == 2 {
         // One point is inside, two points are outside -> Clip triangle into one triangles
         let inside_point = inside_points[0];
         let outside_point1 = outside_points[0];
         let outside_point2 = outside_points[1];
 
-        let intersection1 =
+        let mut new_triangle = *triangle;
+
+        let (intersection1, t1) =
             line_plane_intersection(&plane_normal, &plane_point, inside_point, outside_point1);
-        let intersection2 =
+        let (intersection2, t2) =
             line_plane_intersection(&plane_normal, &plane_point, inside_point, outside_point2);
 
-        out_triangles.push(Triangle {
-            vertices: [*inside_point, intersection1, intersection2],
-            intensity: triangle.intensity,
-        });
+        new_triangle.vertices[0] = *inside_point;
+        new_triangle.vertices[1] = intersection1;
+        new_triangle.vertices[2] = intersection2;
+
+        new_triangle.texture_coords[0] = *inside_texture_coords[0];
+        new_triangle.texture_coords[1].u = t1
+            * (outside_texture_coords[0].u - inside_texture_coords[0].u)
+            + inside_texture_coords[0].u;
+        new_triangle.texture_coords[1].v = t1
+            * (outside_texture_coords[0].v - inside_texture_coords[0].v)
+            + inside_texture_coords[0].v;
+        new_triangle.texture_coords[1].w = t1
+            * (outside_texture_coords[0].w - inside_texture_coords[0].w)
+            + inside_texture_coords[0].w;
+
+        new_triangle.texture_coords[2].u = t2
+            * (outside_texture_coords[1].u - inside_texture_coords[0].u)
+            + inside_texture_coords[0].u;
+        new_triangle.texture_coords[2].v = t2
+            * (outside_texture_coords[1].v - inside_texture_coords[0].v)
+            + inside_texture_coords[0].v;
+        new_triangle.texture_coords[2].w = t2
+            * (outside_texture_coords[1].w - inside_texture_coords[0].w)
+            + inside_texture_coords[0].w;
+
+        out_triangles.push(new_triangle);
 
         return 1;
-    }
-
-    if inside_count == 2 && outside_count == 1 {
+    } else if inside_count == 2 && outside_count == 1 {
         // Two points are inside, one point is outside -> Clip triangle into two triangles
         let inside_point1 = inside_points[0];
         let inside_point2 = inside_points[1];
         let outside_point = outside_points[0];
 
-        let intersection1 =
+        let mut new_triangle1 = *triangle;
+        let mut new_triangle2 = *triangle;
+
+        // First triangle
+        let (intersection1, t1) =
             line_plane_intersection(&plane_normal, &plane_point, inside_point1, outside_point);
-        let intersection2 =
+
+        new_triangle1.vertices[0] = *inside_point1;
+        new_triangle1.vertices[1] = *inside_point2;
+        new_triangle1.vertices[2] = intersection1;
+
+        new_triangle1.texture_coords[0] = *inside_texture_coords[0];
+        new_triangle1.texture_coords[1] = *inside_texture_coords[1];
+        new_triangle1.texture_coords[2].u = t1
+            * (outside_texture_coords[0].u - inside_texture_coords[0].u)
+            + inside_texture_coords[0].u;
+        new_triangle1.texture_coords[2].v = t1
+            * (outside_texture_coords[0].v - inside_texture_coords[0].v)
+            + inside_texture_coords[0].v;
+        new_triangle1.texture_coords[2].w = t1
+            * (outside_texture_coords[0].w - inside_texture_coords[0].w)
+            + inside_texture_coords[0].w;
+
+        // Second triangle
+        let (intersection2, t2) =
             line_plane_intersection(&plane_normal, &plane_point, inside_point2, outside_point);
 
-        let out_triangle1 = Triangle {
-            vertices: [*inside_point1, *inside_point2, intersection1],
-            intensity: triangle.intensity,
-        };
+        new_triangle2.vertices[0] = *inside_point2;
+        new_triangle2.vertices[2] = intersection1;
+        new_triangle2.vertices[1] = intersection2;
 
-        let out_triangle2 = Triangle {
-            vertices: [*inside_point2, intersection2, intersection1],
-            intensity: triangle.intensity,
-        };
+        new_triangle2.texture_coords[0] = *inside_texture_coords[1];
+        new_triangle2.texture_coords[2] = new_triangle1.texture_coords[2];
+        new_triangle2.texture_coords[1].u = t2
+            * (outside_texture_coords[0].u - inside_texture_coords[1].u)
+            + inside_texture_coords[1].u;
+        new_triangle2.texture_coords[1].v = t2
+            * (outside_texture_coords[0].v - inside_texture_coords[1].v)
+            + inside_texture_coords[1].v;
+        new_triangle2.texture_coords[1].w = t2
+            * (outside_texture_coords[0].w - inside_texture_coords[1].w)
+            + inside_texture_coords[1].w;
 
-        out_triangles.push(out_triangle1);
-        out_triangles.push(out_triangle2);
+        out_triangles.push(new_triangle1);
+        out_triangles.push(new_triangle2);
 
         return 2;
     }
