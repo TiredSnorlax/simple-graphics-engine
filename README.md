@@ -2,6 +2,8 @@
 
 This is a simple graphics engine built with Rust.
 
+https://github.com/user-attachments/assets/7e003636-ea04-48df-b0a6-ebebc24f008f
+
 ## Prerequisites
 
 Ensure you have Rust and Cargo installed. You can find installation instructions at [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install).
